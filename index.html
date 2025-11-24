@@ -223,7 +223,8 @@
       display:flex;
       flex-wrap:wrap;
       gap:10px;
-      margin-top:18px;
+      margin-top:8px;
+      margin-bottom:12px;
       justify-content:center;
     }
 
@@ -330,16 +331,17 @@
   <div class="card" id="resultCard" style="display:none;">
     <h1>結果</h1>
 
+    <!-- 🔼 ボタンを上部に移動 -->
+    <div class="result-actions">
+      <button class="btn primary" id="saveBtn">結果を画像保存</button>
+      <button class="btn" id="shareBtn">Xで結果を共有</button>
+    </div>
+
     <ol class="results-list" id="resultsList"></ol>
 
     <div id="unknownWrap" style="display:none;">
       <h3>知らない にした曲</h3>
       <ul class="results-list" id="unknownList"></ul>
-    </div>
-
-    <div class="result-actions">
-      <button class="btn primary" id="saveBtn">結果を画像保存</button>
-      <button class="btn" id="shareBtn">Xで結果を共有</button>
     </div>
 
     <div class="bottom-link">
@@ -355,10 +357,10 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
-  // ★ 集計先の Apps Script URL（最新）
+  // ★ 集計先の Apps Script URL（あなたが送ってくれた最新）
   const ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbxVu5Y0TDyzDl3kRP_s1v9qt4N0xzkc-iXgb9s7XgB4HxU8wyRMDvqOKj5OcAE5FJfEWA/exec";
 
-  // ----- 楽曲データ -----
+  // ----- 楽曲データ：最新リスト＋修正・追加反映 -----
   const fullSongsRaw = [
     "眼鏡の男の子(1stシングル)",
     "Go Waist (1stシングル)",
@@ -372,7 +374,7 @@
     "きのこたけのこ大戦記(BEYOOOOOND1St)",
     "こんなハズジャナカッター！(2ndシングル)",
     "ハムカツ黙示録(3rdシングル)",
-    "ビタミンME(配信シングル)",
+    "ビタミンME(2ndシングル)",
     "Now Now Ningen(2ndシングル)",
     "激辛LOVE (2ndシングル)",
     "フレフレエブリデイ(配信シングル)",
@@ -442,6 +444,7 @@
     "フランスレボリューション(演劇女子部「ビヨサイユ宮殿」)",
 
     "本当のわたし(演劇女子部「不思議の国のアリスたち」)",
+    "信じるもの〜ホントのわたし(演劇女子部「不思議の国のアリスたち」)",
     "不思議の国のアリスたち(演劇女子部「不思議の国のアリスたち」)",
     "女王のオーディション(演劇女子部「不思議の国のアリスたち」)",
     "呼び名(演劇女子部「不思議の国のアリスたち」)",
@@ -481,7 +484,9 @@
     "ビヨサイユ宮殿"
   ];
 
-  function isStageSong(str){ return STAGE_KEYWORDS.some(k=>str.includes(k)); }
+  function isStageSong(str){
+    return STAGE_KEYWORDS.some(k => str.includes(k));
+  }
 
   // BEYOOOOOND1St / 2NDS をアルバム表記に置換
   function cleanSong(str){
@@ -525,6 +530,7 @@
   const saveBtn     = document.getElementById("saveBtn");
   const shareBtn    = document.getElementById("shareBtn");
   const backBtn     = document.getElementById("backBtn");
+  const tieBtn      = document.getElementById("tieBtn");
 
   document.querySelectorAll(".back-home").forEach(a=>{
     a.addEventListener("click", e=>{
@@ -607,18 +613,6 @@
       return;
     }
     mid = Math.floor((low+high)/2);
-
-    history.push({
-      idx,
-      low,
-      high,
-      mid,
-      candidate,
-      ranked: ranked.slice(),
-      unknown: unknown.slice()
-    });
-    updateBackButton();
-
     showPair(candidate, ranked[mid]);
   }
 
@@ -631,20 +625,35 @@
     rightAlbum.textContent = R.album;
   }
 
+  function saveStateForUndo(){
+    history.push({
+      pool: pool.slice(),
+      ranked: ranked.slice(),
+      unknown: unknown.slice(),
+      idx,
+      low,
+      high,
+      mid,
+      candidate,
+      currentModeIncludeStage
+    });
+    updateBackButton();
+  }
+
   leftOption.onclick = () => {
-    // 左の曲がより好き
+    saveStateForUndo();
     high = mid;
     ask();
   };
 
   rightOption.onclick= () => {
-    // 右の曲がより好き
+    saveStateForUndo();
     low  = mid+1;
     ask();
   };
 
-  document.getElementById("tieBtn").onclick = () => {
-    // 引き分け → mid のすぐ後ろに挿入
+  tieBtn.onclick = () => {
+    saveStateForUndo();
     low = mid+1;
     high = mid+1;
     ask();
@@ -653,13 +662,15 @@
   backBtn.addEventListener("click", () => {
     if(!history.length) return;
     const state = history.pop();
+    pool = state.pool.slice();
+    ranked = state.ranked.slice();
+    unknown = state.unknown.slice();
     idx = state.idx;
     low = state.low;
     high = state.high;
     mid = state.mid;
     candidate = state.candidate;
-    ranked = state.ranked.slice();
-    unknown = state.unknown.slice();
+    currentModeIncludeStage = state.currentModeIncludeStage;
     updateProgress();
     updateBackButton();
 
@@ -740,7 +751,7 @@
     const top = ranked.slice(0,5)
       .map((s,i)=>`${i+1}. ${parseSong(s).title}`)
       .join(" / ");
-    const text = `BEYOOOOONDS楽曲ソート 結果\n${top}`;
+    const text = `BEYOOOOONDS楽曲ソート 結果\n${top}\n\n#ビヨ曲ソート`;
     const url  = location.href;
     const shareUrl =
       "https://twitter.com/intent/tweet?text=" +
